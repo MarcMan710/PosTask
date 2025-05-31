@@ -1,12 +1,180 @@
-# React + Vite
+# PosTask Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, feature-rich task management application built with React, TypeScript, and Tailwind CSS.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Task Management**
+  - Create, edit, and delete tasks
+  - Organize tasks into projects
+  - Track task progress and deadlines
+  - Subtask support for complex tasks
 
-## Expanding the ESLint configuration
+- **Project Organization**
+  - Create and manage multiple projects
+  - Project-specific task views
+  - Project progress tracking
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **Gamification**
+  - Achievement system
+  - Leaderboard
+  - Progress tracking
+  - Rewards and badges
+
+- **User Experience**
+  - Dark/Light theme support
+  - Responsive design
+  - Real-time updates
+  - Intuitive navigation
+
+## 🛠️ Tech Stack
+
+- **Core**
+  - React 18
+  - TypeScript
+  - Vite
+  - React Router v6
+
+- **Styling**
+  - Tailwind CSS
+  - Custom theme system
+  - Responsive design
+
+- **State Management**
+  - React Context API
+  - Custom hooks
+
+- **Development Tools**
+  - ESLint
+  - TypeScript
+  - Vite
+  - Git
+
+## 📦 Project Structure
+
+```
+frontend/
+├── src/
+│   ├── components/         # React components
+│   │   ├── auth/          # Authentication components
+│   │   ├── common/        # Shared components
+│   │   ├── gamification/  # Gamification features
+│   │   ├── projects/      # Project management
+│   │   └── tasks/         # Task management
+│   ├── contexts/          # React Context providers
+│   ├── hooks/             # Custom React hooks
+│   ├── services/          # API services
+│   ├── utils/             # Utility functions
+│   └── types/             # TypeScript type definitions
+├── public/                # Static assets
+└── tests/                 # Test files
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+- Git
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone [repository-url]
+   cd frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+
+3. Create a `.env` file in the root directory:
+   ```env
+   VITE_API_URL=http://localhost:3000
+   ```
+
+4. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+The application will be available at `http://localhost:5173`
+
+## 🏗️ Building for Production
+
+```bash
+npm run build
+# or
+yarn build
+```
+
+The build artifacts will be stored in the `dist/` directory.
+
+## 🧪 Testing
+
+```bash
+npm run test
+# or
+yarn test
+```
+
+## 📝 Code Style
+
+This project uses ESLint and Prettier for code formatting. The configuration is in `.eslintrc.js` and `.prettierrc`.
+
+## 🔄 TypeScript Path Aliases
+
+The project uses TypeScript path aliases for cleaner imports:
+
+- `@/*` - Source root
+- `@components/*` - Components
+- `@contexts/*` - Context providers
+- `@hooks/*` - Custom hooks
+- `@services/*` - API services
+- `@utils/*` - Utility functions
+- `@types/*` - Type definitions
+
+## 🎨 Theme System
+
+The application supports both light and dark themes using Tailwind CSS. Theme configuration can be found in `tailwind.config.js`.
+
+## 🔒 Authentication
+
+The application uses JWT-based authentication. Protected routes are wrapped with the `ProtectedRoute` component.
+
+## 📱 Responsive Design
+
+The application is fully responsive and works on:
+- Desktop
+- Tablet
+- Mobile devices
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 👥 Authors
+
+- Your Name - Initial work
+
+## 🙏 Acknowledgments
+
+- React Team
+- Tailwind CSS Team
+- Vite Team
+- All contributors

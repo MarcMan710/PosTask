@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const notificationService = require('../services/notificationService');
+const pool = require('../db/config');
 
 class Task {
   static async findAll(filters = {}) {
@@ -68,22 +69,19 @@ class Task {
     }
   }
 
-  static async findById(id) {
+  static async findById(id, userId) {
     try {
       const query = `
-        SELECT t.*, 
-          COALESCE(json_agg(json_build_object(
-            'id', tag.id,
-            'name', tag.name,
-            'color', tag.color
-          )) FILTER (WHERE tag.id IS NOT NULL), '[]') as tags
+        SELECT t.*, p.name as project_name, p.color as project_color,
+               u1.username as created_by_username,
+               u2.username as assigned_to_username
         FROM tasks t
-        LEFT JOIN task_tags tt ON t.id = tt.task_id
-        LEFT JOIN tags tag ON tt.tag_id = tag.id
+        LEFT JOIN projects p ON t.project_id = p.id
+        LEFT JOIN users u1 ON t.created_by = u1.id
+        LEFT JOIN users u2 ON t.assigned_to = u2.id
         WHERE t.id = $1
-        GROUP BY t.id
       `;
-      const result = await db.query(query, [id]);
+      const result = await pool.query(query, [id]);
       return result.rows[0];
     } catch (error) {
       console.error('Error in Task.findById:', error);
@@ -91,142 +89,96 @@ class Task {
     }
   }
 
-  static async create({ title, description, status, priority, tags, due_date, user_id, is_recurring, recurrence_pattern, recurrence_interval, recurrence_end_date }) {
-    try {
-      await db.query('BEGIN');
-
-      // Get the next position
-      const positionResult = await db.query(
-        'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM tasks'
-      );
-      const position = positionResult.rows[0].next_position;
-
-      // Insert the task
-      const taskQuery = `
-        INSERT INTO tasks (
-          title, description, status, priority, position, due_date,
-          is_recurring, recurrence_pattern, recurrence_interval, recurrence_end_date
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `;
-      const taskResult = await db.query(taskQuery, [
-        title,
-        description,
-        status,
-        priority,
-        position,
-        due_date,
-        is_recurring || false,
-        recurrence_pattern,
-        recurrence_interval,
-        recurrence_end_date
-      ]);
-      const task = taskResult.rows[0];
-
-      // Add tags if provided
-      if (tags && tags.length > 0) {
-        const tagValues = tags.map(tagId => `(${task.id}, ${tagId})`).join(',');
-        await db.query(`
-          INSERT INTO task_tags (task_id, tag_id)
-          VALUES ${tagValues}
-        `);
-      }
-
-      await db.query('COMMIT');
-
-      // Create notification if due_date is set
-      if (due_date && user_id) {
-        await notificationService.createTaskReminder(task, { id: user_id });
-      }
-
-      // If this is a recurring task, create the next occurrence
-      if (is_recurring && recurrence_pattern && recurrence_interval) {
-        await this.createNextRecurrence(task);
-      }
-
-      // Fetch the complete task with tags
-      return this.findById(task.id);
-    } catch (error) {
-      await db.query('ROLLBACK');
-      console.error('Error in Task.create:', error);
-      throw error;
-    }
+  static async create({ title, description, due_date, priority, status, project_id, created_by, assigned_to = null }) {
+    const query = `
+      INSERT INTO tasks (title, description, due_date, priority, status, project_id, created_by, assigned_to)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `;
+    const values = [title, description, due_date, priority, status, project_id, created_by, assigned_to];
+    const { rows } = await pool.query(query, values);
+    return rows[0];
   }
 
-  static async update(id, { title, description, status, priority, tags, due_date, user_id, is_recurring, recurrence_pattern, recurrence_interval, recurrence_end_date }) {
-    try {
-      await db.query('BEGIN');
-
-      // Update the task
-      const taskQuery = `
-        UPDATE tasks
-        SET title = $1,
-            description = $2,
-            status = $3,
-            priority = $4,
-            due_date = $5,
-            is_recurring = $6,
-            recurrence_pattern = $7,
-            recurrence_interval = $8,
-            recurrence_end_date = $9
-        WHERE id = $10
-        RETURNING *
-      `;
-      const taskResult = await db.query(taskQuery, [
-        title,
-        description,
-        status,
-        priority,
-        due_date,
-        is_recurring || false,
-        recurrence_pattern,
-        recurrence_interval,
-        recurrence_end_date,
-        id
-      ]);
-
-      if (taskResult.rows.length === 0) {
-        await db.query('ROLLBACK');
-        return null;
-      }
-
-      const task = taskResult.rows[0];
-
-      // Update tags if provided
-      if (tags) {
-        // Remove existing tags
-        await db.query('DELETE FROM task_tags WHERE task_id = $1', [id]);
-
-        // Add new tags
-        if (tags.length > 0) {
-          const tagValues = tags.map(tagId => `(${id}, ${tagId})`).join(',');
-          await db.query(`
-            INSERT INTO task_tags (task_id, tag_id)
-            VALUES ${tagValues}
-          `);
-        }
-      }
-
-      await db.query('COMMIT');
-
-      // Create notification if due_date is set and user_id is provided
-      if (due_date && user_id) {
-        await notificationService.createTaskReminder(task, { id: user_id });
-      }
-
-      // If this is a recurring task, create the next occurrence
-      if (is_recurring && recurrence_pattern && recurrence_interval) {
-        await this.createNextRecurrence(task);
-      }
-
-      // Fetch the complete task with tags
-      return this.findById(id);
-    } catch (error) {
-      await db.query('ROLLBACK');
-      console.error('Error in Task.update:', error);
-      throw error;
+  static async update(id, { title, description, due_date, priority, status, assigned_to }, userId) {
+    const task = await this.findById(id, userId);
+    if (!task) {
+      throw new Error('Task not found');
     }
+
+    // Check if user has permission to update the task
+    const projectQuery = `
+      SELECT pm.role
+      FROM project_members pm
+      WHERE pm.project_id = $1 AND pm.user_id = $2
+    `;
+    const { rows: [projectMember] } = await pool.query(projectQuery, [task.project_id, userId]);
+    
+    if (!projectMember) {
+      throw new Error('Unauthorized to update task');
+    }
+
+    const query = `
+      UPDATE tasks
+      SET title = $1, description = $2, due_date = $3, priority = $4,
+          status = $5, assigned_to = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `;
+    const values = [title, description, due_date, priority, status, assigned_to, id];
+    const { rows } = await pool.query(query, values);
+    return rows[0];
+  }
+
+  static async delete(id, userId) {
+    const task = await this.findById(id, userId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Check if user has permission to delete the task
+    const projectQuery = `
+      SELECT pm.role
+      FROM project_members pm
+      WHERE pm.project_id = $1 AND pm.user_id = $2
+    `;
+    const { rows: [projectMember] } = await pool.query(projectQuery, [task.project_id, userId]);
+    
+    if (!projectMember || projectMember.role !== 'owner') {
+      throw new Error('Unauthorized to delete task');
+    }
+
+    const query = 'DELETE FROM tasks WHERE id = $1 RETURNING *';
+    const { rows } = await pool.query(query, [id]);
+    return rows[0];
+  }
+
+  static async getAssignedTasks(userId) {
+    const query = `
+      SELECT t.*, p.name as project_name, p.color as project_color,
+             u.username as created_by_username
+      FROM tasks t
+      LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN users u ON t.created_by = u.id
+      WHERE t.assigned_to = $1
+      ORDER BY t.due_date ASC, t.priority DESC
+    `;
+    const { rows } = await pool.query(query, [userId]);
+    return rows;
+  }
+
+  static async getCreatedTasks(userId) {
+    const query = `
+      SELECT t.*, p.name as project_name, p.color as project_color,
+             u.username as assigned_to_username
+      FROM tasks t
+      LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.created_by = $1
+      ORDER BY t.created_at DESC
+    `;
+    const { rows } = await pool.query(query, [userId]);
+    return rows;
   }
 
   static async createNextRecurrence(parentTask) {
@@ -306,25 +258,6 @@ class Task {
       return result.rows;
     } catch (error) {
       console.error('Error in getRecurringTasks:', error);
-      throw error;
-    }
-  }
-
-  static async delete(id) {
-    try {
-      await db.query('BEGIN');
-
-      // Delete task tags
-      await db.query('DELETE FROM task_tags WHERE task_id = $1', [id]);
-
-      // Delete the task
-      const result = await db.query('DELETE FROM tasks WHERE id = $1 RETURNING id', [id]);
-
-      await db.query('COMMIT');
-      return result.rows.length > 0;
-    } catch (error) {
-      await db.query('ROLLBACK');
-      console.error('Error in Task.delete:', error);
       throw error;
     }
   }

@@ -6,6 +6,31 @@
 
 @layer base {
   body {
-    @apply bg-gray-50;
+    @apply bg-light-primary dark:bg-dark-primary text-light-primary dark:text-dark-primary transition-colors duration-200;
+  }
+
+  /* Custom scrollbar for dark mode */
+  .dark ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    @apply bg-dark-secondary;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-dark-tertiary rounded-full;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-dark-tertiary/80;
+  }
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-primary-700;
   }
 }
